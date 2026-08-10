@@ -1,0 +1,16 @@
+services:
+  ngrok:
+    image: ngrok/ngrok:alpine
+    container_name: cineflix-ngrok
+    restart: unless-stopped
+    depends_on:
+      cineflix:
+        condition: service_healthy
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Set NGROK_AUTHTOKEN in .env}
+    command:
+      - http
+      - http://cineflix:8787
+      - --log=stdout
+    ports:
+      - "127.0.0.1:${NGROK_INSPECTOR_PORT:-4040}:4040"

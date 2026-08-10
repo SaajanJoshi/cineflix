@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: cineflix-tv
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=256
+      - key: OMDB_CACHE_FILE
+        value: /app/.cache/omdb-ratings.json
+      - key: TMDB_READ_ACCESS_TOKEN
+        sync: false
+      - key: OMDB_API_KEY
+        sync: false
+      - key: VIDKING_BASE_URL
+        value: https://www.vidking.net
+      - key: VIDKING_COLOR
+        value: e50914
+      - key: ELASTICSEARCH_INDEX
+        value: cineflix-media-v2

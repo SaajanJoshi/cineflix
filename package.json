@@ -1,0 +1,40 @@
+{
+  "name": "cineflix-mui-streaming",
+  "private": true,
+  "version": "3.4.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n web,api \"vite --host 0.0.0.0\" \"node --watch server/index.mjs\"",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "start": "node server/index.mjs",
+    "sync:search": "node server/sync-elastic.mjs",
+    "diagnose:ratings": "node server/diagnose-ratings.mjs",
+    "dev:lite": "concurrently -k -n web,api \"vite --host 0.0.0.0\" \"node server/index.mjs\"",
+    "start:tv": "node --max-old-space-size=256 server/index.mjs",
+    "serve:tv": "npm run build && npm run start:tv",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:ngrok": "docker compose -f compose.yaml -f compose.ngrok.yaml up -d --build",
+    "render:start": "node --max-old-space-size=256 server/index.mjs"
+  },
+  "dependencies": {
+    "@elastic/elasticsearch": "9.1.0",
+    "cors": "2.8.5",
+    "dotenv": "17.2.0",
+    "express": "5.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "9.2.0",
+    "vite": "7.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.0",
+    "@mui/material": "7.2.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  }
+}
