@@ -181,6 +181,7 @@ export default function App() {
 
   useEffect(() => {
     if (view !== 'search') return;
+    let live = true;
     const hasCriteria = debouncedQuery.trim().length >= 2 || year || debouncedCountry.trim() || genre;
     // When there are no explicit criteria, show a default movie listing so the
     // search view is useful immediately and supports lazy loading.
@@ -225,7 +226,7 @@ export default function App() {
     };
 
     fetchPage(1);
-    return () => { /* cleanup: future responses are ignored via epoch check */ };
+    return () => { live = false; };
   }, [view, debouncedQuery, year, debouncedCountry, genre, searchType, health?.ratings?.configured]);
 
   const loadMoreSearch = () => {
