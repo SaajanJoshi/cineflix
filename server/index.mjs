@@ -190,7 +190,10 @@ if (fs.existsSync(distDir)) {
     return res.sendFile(path.join(distDir, 'index.html'));
   });
 } else {
-  app.get('*', (req, res, next) => {
+  // When no frontend build is present, respond with a friendly 404 for non-API
+  // routes. Use `app.use` instead of a route pattern to avoid path-to-regexp
+  // parsing errors on some environments.
+  app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
     res.status(404).send('Frontend build not found. Run `npm run build` or use `npm run dev` to start the app.');
   });

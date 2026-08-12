@@ -19,7 +19,10 @@ export default function PlayerDialog({ playback, playerConfig, onClose }) {
   const episodeName = playback?.episodeName || '';
   const baseUrl = playerConfig?.baseUrl || 'https://www.vidking.net';
   const color = playerConfig?.color || 'e50914';
-  const sandbox = playerConfig?.sandbox || 'allow-scripts allow-same-origin allow-presentation allow-popups';
+  // By default we do not force a sandbox attribute. If the server provides a
+  // `sandbox` string in `playerConfig`, it will be applied. Some providers
+  // (e.g. VidKing) require fewer restrictions to function correctly.
+  const sandbox = playerConfig?.sandbox ?? undefined;
 
   const src = useMemo(() => {
     if (!media?.id) return '';

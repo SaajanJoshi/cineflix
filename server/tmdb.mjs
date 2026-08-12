@@ -446,11 +446,35 @@ export async function searchTmdb({ query, year, country, genre, mediaType = 'all
   if (country && !query) {
     const code = countryCode(country);
     const needle = String(country).trim().toLowerCase();
-    const detailed = await mapLimit(results.slice(0, 30), 5, (item) => getMediaDetails(item.mediaType, item.id));
-    results = detailed.filter((item) => (
-      (code && item.countryCodes.includes(code))
-      || item.countries.some((name) => name.toLowerCase().includes(needle))
-    ));
+
+    // Progressive detail fetch: instead of enriching all candidates up-front (which
+    // can fire many expensive TMDB calls), fetch details with limited concurrency
+    // and stop early when we've gathered a full page of matching items. This
+    // reduces average request count and improves search responsiveness.
+    const candidates = results.slice(0, 60);
+    const kept = [];
+    let cursor = 0;
+    const concurrency = 5;
+
+    async function worker() {
+      while (kept.length < 30 && cursor < candidates.length) {
+        const index = cursor++;
+        const candidate = candidates[index];
+        try {
+          const detail = await getMediaDetails(candidate.mediaType, candidate.id);
+          if ((code && detail.countryCodes.includes(code)) || detail.countries.some((name) => name.toLowerCase().includes(needle))) {
+            kept.push(detail);
+          }
+        } catch (err) {
+          // ignore individual detail failures and continue
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: Math.min(concurrency, candidates.length) }, worker));
+    results = kept;
+    totalResults = results.length;
+    totalPages = totalResults ? Math.ceil(totalResults / 30) : 1;
   }
 
   return { results: results.slice(0, 30), page, totalPages, totalResults };

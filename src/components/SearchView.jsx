@@ -148,7 +148,7 @@ export default function SearchView({
             disabled={loadingMore}
             sx={{ px: 4 }}
           >
-            {loadingMore ? 'Loading more…' : 'Load more results'}
+            {loadingMore ? <CircularProgress size={20} /> : 'Load more results'}
           </Button>
         </Box>
       ) : null}

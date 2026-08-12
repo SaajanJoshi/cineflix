@@ -93,7 +93,18 @@ export default function App() {
   const library = useLibrary();
   const runtimeProfile = performanceProfile();
   const effectivePreviewsEnabled = library.previewsEnabled && !runtimeProfile.lowMemory;
-  const [view, setView] = useState('home');
+  const [view, setView] = useState(() => {
+    try {
+      const path = (typeof window !== 'undefined' && window.location && window.location.pathname) ? window.location.pathname : '/';
+      if (path.startsWith('/search')) return 'search';
+      if (path.startsWith('/my-list')) return 'my-list';
+      if (path.startsWith('/movies')) return 'movies';
+      if (path.startsWith('/series')) return 'series';
+      return 'home';
+    } catch (e) {
+      return 'home';
+    }
+  });
   const [home, setHome] = useState(null);
   const [health, setHealth] = useState(null);
   const [ratingsById, setRatingsById] = useState({});
@@ -313,8 +324,31 @@ export default function App() {
   const openView = (nextView) => {
     setView(nextView);
     setHeroIndex(0);
+    const path = nextView === 'home' ? '/' : `/${nextView}`;
+    try {
+      window.history.pushState({ view: nextView }, '', path);
+    } catch (e) {}
     window.scrollTo({ top: 0, behavior: runtimeProfile.lowMemory ? 'auto' : 'smooth' });
   };
+
+  useEffect(() => {
+    const onPop = (event) => {
+      const stateView = event.state?.view;
+      if (stateView) {
+        setView(stateView);
+      } else {
+        const path = (typeof window !== 'undefined' && window.location && window.location.pathname) ? window.location.pathname : '/';
+        if (path.startsWith('/search')) setView('search');
+        else if (path.startsWith('/my-list')) setView('my-list');
+        else if (path.startsWith('/movies')) setView('movies');
+        else if (path.startsWith('/series')) setView('series');
+        else setView('home');
+      }
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const play = (media, option = {}) => {
     const resume = option?.media ? option : null;
