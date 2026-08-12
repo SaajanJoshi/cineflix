@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, useRef } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -124,6 +124,11 @@ export default function App() {
   const [search, setSearch] = useState({ loading: false, loadingMore: false, error: '', warning: '', results: [], provider: '', page: 1, totalPages: 1, totalResults: 0 });
   const debouncedQuery = useDebouncedValue(query, 300);
   const debouncedCountry = useDebouncedValue(country, 300);
+  const latestSearchParamsRef = useRef({ query: debouncedQuery, year, country: debouncedCountry, genre, mediaType: searchType });
+
+  useEffect(() => {
+    latestSearchParamsRef.current = { query: debouncedQuery, year, country: debouncedCountry, genre, mediaType: searchType };
+  }, [debouncedQuery, year, debouncedCountry, genre, searchType]);
 
   useEffect(() => {
     let live = true;
@@ -221,42 +226,53 @@ export default function App() {
   }, [view, debouncedQuery, year, debouncedCountry, genre, searchType, health?.ratings?.configured]);
 
   const loadMoreSearch = () => {
-    if (search.loadingMore || search.page >= search.totalPages) return;
-    const nextPage = search.page + 1;
-    setSearch((current) => ({ ...current, loadingMore: true, error: '' }));
+    // Use functional update and a ref holding latest search params to avoid
+    // stale closures when the user has active search criteria.
     let live = true;
-    api.search({ query: debouncedQuery, year, country: debouncedCountry, genre, mediaType: searchType, page: nextPage })
-      .then((data) => {
-        if (!live) return;
-        const moreResults = data.results || [];
-        setSearch((current) => {
-          const updatedResults = [...(current.results || []), ...moreResults];
-          const nextState = {
-            loading: false,
-            loadingMore: false,
-            error: '',
-            warning: data.warning || '',
-            provider: data.provider || '',
-            page: Number(data.page || nextPage),
-            totalPages: Number(data.totalPages || 1),
-            totalResults: Number(data.totalResults || updatedResults.length),
-            results: updatedResults,
-          };
-          if (updatedResults.length && health?.ratings?.configured === true) {
-            loadRatingsProgressively(
-              updatedResults,
-              (ratingData) => setRatingsById((current) => mergeRatingsCapped(current, ratingData.ratings, runtimeProfile.lowMemory ? 24 : 36)),
-              () => live,
-              runtimeProfile.lowMemory ? 24 : 36,
-            ).catch(() => {});
-          }
-          return nextState;
-        });
-      })
-      .catch((error) => {
-        if (!live) return;
-        setSearch((current) => ({ ...current, loadingMore: false, error: error.message }));
-      });
+    setSearch((cur) => {
+      if (cur.loadingMore || cur.page >= cur.totalPages) return cur;
+      const nextPage = cur.page + 1;
+      // mark as loading immediately
+      const loadingState = { ...cur, loadingMore: true, error: '' };
+
+      (async () => {
+        try {
+          const params = latestSearchParamsRef.current;
+          const data = await api.search({ query: params.query, year: params.year, country: params.country, genre: params.genre, mediaType: params.mediaType, page: nextPage });
+          if (!live) return;
+          const moreResults = data.results || [];
+          setSearch((current) => {
+            const updatedResults = [...(current.results || []), ...moreResults];
+            const nextState = {
+              loading: false,
+              loadingMore: false,
+              error: '',
+              warning: data.warning || '',
+              provider: data.provider || '',
+              page: Number(data.page || nextPage),
+              totalPages: Number(data.totalPages || 1),
+              totalResults: Number(data.totalResults || updatedResults.length),
+              results: updatedResults,
+            };
+            if (updatedResults.length && health?.ratings?.configured === true) {
+              loadRatingsProgressively(
+                updatedResults,
+                (ratingData) => setRatingsById((current) => mergeRatingsCapped(current, ratingData.ratings, runtimeProfile.lowMemory ? 24 : 36)),
+                () => live,
+                runtimeProfile.lowMemory ? 24 : 36,
+              ).catch(() => {});
+            }
+            return nextState;
+          });
+        } catch (error) {
+          if (!live) return;
+          setSearch((current) => ({ ...current, loadingMore: false, error: error.message }));
+        }
+      })();
+
+      return loadingState;
+    });
+    return () => { live = false; };
   };
 
   const progressByMedia = useMemo(() => {
