@@ -170,8 +170,9 @@ app.get('/api/search', async (req, res, next) => {
     }
 
     const tmdbResults = await searchTmdb(params);
-    if (elasticEnabled() && tmdbResults.results?.length) {
-      mapLimit(tmdbResults.results.slice(0, 20), 5, (item) => getMediaDetails(item.mediaType, item.id))
+    const enrichmentCandidates = (tmdbResults.results || []).filter((item) => item?.id && item?.mediaType && ['movie', 'tv'].includes(item.mediaType));
+    if (elasticEnabled() && enrichmentCandidates.length) {
+      mapLimit(enrichmentCandidates.slice(0, 20), 5, (item) => getMediaDetails(item.mediaType, item.id))
         .then(upsertMedia)
         .catch((error) => console.warn('Elasticsearch upsert:', error.message));
     }

@@ -227,15 +227,17 @@ function dateMonthsAgo(months) {
 function normalizeList(items, map, type, limit = 18) {
   return (items || [])
     .filter((item) => item.poster_path || item.backdrop_path)
-    .slice(0, limit)
-    .map((item) => normalizeMedia(item, map, type));
+    .map((item) => normalizeMedia(item, map, type))
+    .filter((item) => item.id > 0 && VALID_TYPES.has(item.mediaType))
+    .slice(0, limit);
 }
 
 function normalizeMixed(items, maps, limit = 22) {
   return (items || [])
     .filter((item) => !item.adult && (item.media_type === 'movie' || item.media_type === 'tv') && (item.poster_path || item.backdrop_path))
-    .slice(0, limit)
-    .map((item) => normalizeMedia(item, maps[item.media_type], item.media_type));
+    .map((item) => normalizeMedia(item, maps[item.media_type], item.media_type))
+    .filter((item) => item.id > 0 && VALID_TYPES.has(item.mediaType))
+    .slice(0, limit);
 }
 
 export async function homeCatalog() {
@@ -435,6 +437,7 @@ export async function searchTmdb({ query, year, country, genre, mediaType = 'all
   }
 
   results = results
+    .filter((item) => item.id > 0 && VALID_TYPES.has(item.mediaType))
     .filter((item) => itemMatchesYear(item, year))
     .filter((item) => itemMatchesGenre(item, genre));
 
