@@ -19,7 +19,7 @@ export default function PlayerDialog({ playback, playerConfig, onClose }) {
   const episodeName = playback?.episodeName || '';
   const baseUrl = playerConfig?.baseUrl || 'https://www.vidking.net';
   const color = playerConfig?.color || 'e50914';
-  const sandbox = baseUrl.includes('vidking') ? 'allow-same-origin allow-presentation' : undefined;
+  const sandbox = baseUrl.includes('vidking') ? 'allow-same-origin allow-presentation allow-scripts' : undefined;
 
   const src = useMemo(() => {
     if (!media?.id) return '';
