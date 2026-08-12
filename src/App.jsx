@@ -229,26 +229,29 @@ export default function App() {
       .then((data) => {
         if (!live) return;
         const moreResults = data.results || [];
-        const updatedResults = [...search.results, ...moreResults];
-        setSearch({
-          loading: false,
-          loadingMore: false,
-          error: '',
-          warning: data.warning || '',
-          provider: data.provider || '',
-          page: Number(data.page || nextPage),
-          totalPages: Number(data.totalPages || 1),
-          totalResults: Number(data.totalResults || updatedResults.length),
-          results: updatedResults,
+        setSearch((current) => {
+          const updatedResults = [...(current.results || []), ...moreResults];
+          const nextState = {
+            loading: false,
+            loadingMore: false,
+            error: '',
+            warning: data.warning || '',
+            provider: data.provider || '',
+            page: Number(data.page || nextPage),
+            totalPages: Number(data.totalPages || 1),
+            totalResults: Number(data.totalResults || updatedResults.length),
+            results: updatedResults,
+          };
+          if (updatedResults.length && health?.ratings?.configured === true) {
+            loadRatingsProgressively(
+              updatedResults,
+              (ratingData) => setRatingsById((current) => mergeRatingsCapped(current, ratingData.ratings, runtimeProfile.lowMemory ? 24 : 36)),
+              () => live,
+              runtimeProfile.lowMemory ? 24 : 36,
+            ).catch(() => {});
+          }
+          return nextState;
         });
-        if (updatedResults.length && health?.ratings?.configured === true) {
-          loadRatingsProgressively(
-            updatedResults,
-            (ratingData) => setRatingsById((current) => mergeRatingsCapped(current, ratingData.ratings, runtimeProfile.lowMemory ? 96 : 180)),
-            () => live,
-            runtimeProfile.lowMemory ? 24 : 36,
-          ).catch(() => {});
-        }
       })
       .catch((error) => {
         if (!live) return;
