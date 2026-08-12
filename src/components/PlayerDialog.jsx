@@ -19,6 +19,7 @@ export default function PlayerDialog({ playback, playerConfig, onClose }) {
   const episodeName = playback?.episodeName || '';
   const baseUrl = playerConfig?.baseUrl || 'https://www.vidking.net';
   const color = playerConfig?.color || 'e50914';
+  const sandbox = baseUrl.includes('vidking') ? 'allow-same-origin allow-presentation' : undefined;
 
   const src = useMemo(() => {
     if (!media?.id) return '';
@@ -124,6 +125,7 @@ export default function PlayerDialog({ playback, playerConfig, onClose }) {
             src={src}
             onLoad={() => { setLoaded(true); setTimedOut(false); }}
             allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            sandbox={sandbox}
             allowFullScreen
             referrerPolicy="strict-origin-when-cross-origin"
             sx={{ width: '100%', height: '100%', border: 0, display: 'block', bgcolor: '#000' }}
