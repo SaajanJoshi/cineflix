@@ -182,6 +182,19 @@ app.get('/api/search', async (req, res, next) => {
   }
 });
 
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir, { maxAge: '1h', etag: true }));
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    return res.sendFile(path.join(distDir, 'index.html'));
+  });
+} else {
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    res.status(404).send('Frontend build not found. Run `npm run build` or use `npm run dev` to start the app.');
+  });
+}
+
 app.use((error, _req, res, _next) => {
   console.error(error);
   const status = /Unsupported media type/.test(error.message || '') ? 400 : 500;
