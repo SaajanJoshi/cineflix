@@ -56,7 +56,7 @@ export default function SearchView({
   const sentinelRef = useRef(null);
 
   useEffect(() => {
-    if (!onLoadMore || !sentinelRef.current || loading || loadingMore || page >= totalPages) return undefined;
+    if (!onLoadMore || !sentinelRef.current || loading || loadingMore || page >= totalPages || !results.length) return undefined;
     const observer = new IntersectionObserver((entries) => {
       const entry = entries[0];
       if (entry?.isIntersecting) onLoadMore();
@@ -139,7 +139,7 @@ export default function SearchView({
         ))}
       </Box>
 
-      {(page < totalPages || loadingMore) && !loading ? (
+      {((results.length && page < totalPages) || loadingMore) && !loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3, px: 2 }}>
           <Button
             data-tv-focus="true"
