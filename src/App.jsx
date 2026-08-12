@@ -129,6 +129,7 @@ export default function App() {
   useEffect(() => {
     latestSearchParamsRef.current = { query: debouncedQuery, year, country: debouncedCountry, genre, mediaType: searchType };
   }, [debouncedQuery, year, debouncedCountry, genre, searchType]);
+  const searchEpochRef = useRef(0);
 
   useEffect(() => {
     let live = true;
@@ -185,14 +186,16 @@ export default function App() {
     // search view is useful immediately and supports lazy loading.
     const effectiveMediaType = hasCriteria ? searchType : (searchType === 'all' ? 'movie' : searchType);
 
-    let live = true;
+    // epoch is incremented for each fresh search to help ignore stale responses
+    const epoch = (searchEpochRef.current = (searchEpochRef.current || 0) + 1);
     const fetchPage = async (page = 1) => {
       if (!live) return;
-      setSearch((current) => ({ ...current, loading: true, loadingMore: false, error: '' }));
+      setSearch((current) => ({ ...current, loading: true, loadingMore: false, error: '', results: page === 1 ? [] : current.results }));
 
       try {
         const data = await api.search({ query: debouncedQuery, year, country: debouncedCountry, genre, mediaType: effectiveMediaType, page });
-        if (!live) return;
+        // ignore if a newer search started
+        if (epoch !== searchEpochRef.current) return;
         const results = data.results || [];
         const nextState = {
           loading: false,
@@ -222,7 +225,7 @@ export default function App() {
     };
 
     fetchPage(1);
-    return () => { live = false; };
+    return () => { /* cleanup: future responses are ignored via epoch check */ };
   }, [view, debouncedQuery, year, debouncedCountry, genre, searchType, health?.ratings?.configured]);
 
   const loadMoreSearch = () => {
@@ -237,8 +240,11 @@ export default function App() {
 
       (async () => {
         try {
+          const expectedEpoch = searchEpochRef.current;
           const params = latestSearchParamsRef.current;
           const data = await api.search({ query: params.query, year: params.year, country: params.country, genre: params.genre, mediaType: params.mediaType, page: nextPage });
+          // if a newer search has started since this loadMore started, ignore
+          if (expectedEpoch !== searchEpochRef.current) return;
           if (!live) return;
           const moreResults = data.results || [];
           setSearch((current) => {
