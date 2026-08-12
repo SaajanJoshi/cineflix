@@ -49,20 +49,21 @@ export default function SearchView({
   onToggleSaved,
   onLoadMore,
   isSaved,
+  ratingsById = {},
   previewsEnabled,
 }) {
   const hasCriteria = query.trim().length >= 2 || year || country.trim() || genre;
   const sentinelRef = useRef(null);
 
   useEffect(() => {
-    if (!onLoadMore || !sentinelRef.current) return undefined;
+    if (!onLoadMore || !sentinelRef.current || loading || loadingMore || page >= totalPages) return undefined;
     const observer = new IntersectionObserver((entries) => {
       const entry = entries[0];
       if (entry?.isIntersecting) onLoadMore();
     }, { rootMargin: '120px' });
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-  }, [onLoadMore]);
+  }, [onLoadMore, loading, loadingMore, page, totalPages]);
 
   return (
     <Box component="main" sx={{ pt: { xs: 15, lg: 12.5 }, px: { xs: 2, md: 5 }, pb: 9, minHeight: '100vh', background: 'radial-gradient(circle at 78% 0%, rgba(229,9,20,.08), transparent 30%)' }}>

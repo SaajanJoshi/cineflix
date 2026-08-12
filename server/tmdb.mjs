@@ -431,7 +431,9 @@ export async function searchTmdb({ query, year, country, genre, mediaType = 'all
       with_genres: genreIdFor(genres, type, genre) || undefined,
       with_origin_country: code || undefined,
     }, maps)));
-    results = discovered.flat().sort((a, b) => b.popularity - a.popularity);
+    // Each discoverType already returns a normalized `results` array. Combine them into
+    // a single list of media items before further filtering and sorting.
+    results = discovered.flatMap((d) => d.results).sort((a, b) => b.popularity - a.popularity);
     totalPages = discovered.reduce((sum, item) => sum + item.totalPages, 0) || 1;
     totalResults = discovered.reduce((sum, item) => sum + item.totalResults, 0) || results.length;
   }

@@ -422,6 +422,7 @@ export default function App() {
             onToggleSaved={library.toggleSaved}
             onLoadMore={loadMoreSearch}
             isSaved={library.isSaved}
+            ratingsById={ratingsById}
             previewsEnabled={effectivePreviewsEnabled}
           />
         </Suspense>
