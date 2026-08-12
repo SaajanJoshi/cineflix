@@ -119,7 +119,8 @@ export default function App() {
   const [year, setYear] = useState('');
   const [country, setCountry] = useState('');
   const [genre, setGenre] = useState('');
-  const [searchType, setSearchType] = useState('all');
+  // default to 'movie' so the search view lists movies by default with lazy loading
+  const [searchType, setSearchType] = useState('movie');
   const [search, setSearch] = useState({ loading: false, loadingMore: false, error: '', warning: '', results: [], provider: '', page: 1, totalPages: 1, totalResults: 0 });
   const debouncedQuery = useDebouncedValue(query, 300);
   const debouncedCountry = useDebouncedValue(country, 300);
@@ -175,10 +176,9 @@ export default function App() {
   useEffect(() => {
     if (view !== 'search') return;
     const hasCriteria = debouncedQuery.trim().length >= 2 || year || debouncedCountry.trim() || genre;
-    if (!hasCriteria) {
-      setSearch({ loading: false, loadingMore: false, error: '', warning: '', results: [], provider: '', page: 1, totalPages: 1, totalResults: 0 });
-      return;
-    }
+    // When there are no explicit criteria, show a default movie listing so the
+    // search view is useful immediately and supports lazy loading.
+    const effectiveMediaType = hasCriteria ? searchType : (searchType === 'all' ? 'movie' : searchType);
 
     let live = true;
     const fetchPage = async (page = 1) => {
@@ -186,7 +186,7 @@ export default function App() {
       setSearch((current) => ({ ...current, loading: true, loadingMore: false, error: '' }));
 
       try {
-        const data = await api.search({ query: debouncedQuery, year, country: debouncedCountry, genre, mediaType: searchType, page });
+        const data = await api.search({ query: debouncedQuery, year, country: debouncedCountry, genre, mediaType: effectiveMediaType, page });
         if (!live) return;
         const results = data.results || [];
         const nextState = {
