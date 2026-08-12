@@ -153,29 +153,34 @@ app.get('/api/search', async (req, res, next) => {
       country: String(req.query.country || '').trim(),
       genre: String(req.query.genre || '').trim(),
       mediaType: String(req.query.type || 'all').trim(),
-        page: Number(req.query.page || 1),
-      };
+      page: Number(req.query.page || 1),
+    };
 
-      let elasticWarning = '';
-      if (elasticEnabled()) {
-        try {
-          const elasticResults = await searchElastic(params);
-          if (elasticResults?.length) return res.json({ provider: 'elasticsearch', results: elasticResults, page: params.page, totalPages: 1, totalResults: elasticResults.length });
-        } catch (error) {
-          elasticWarning = `Elasticsearch unavailable: ${error.message}`;
-          console.warn(elasticWarning);
+    let elasticWarning = '';
+    if (elasticEnabled()) {
+      try {
+        const elasticResults = await searchElastic(params);
+        if (elasticResults?.length) {
+          return res.json({ provider: 'elasticsearch', results: elasticResults, page: params.page, totalPages: 1, totalResults: elasticResults.length });
         }
+      } catch (error) {
+        elasticWarning = `Elasticsearch unavailable: ${error.message}`;
+        console.warn(elasticWarning);
       }
+    }
 
-      const tmdbResults = await searchTmdb(params);
-      if (elasticEnabled() && tmdbResults.results?.length) {
-        mapLimit(tmdbResults.results.slice(0, 20), 5, (item) => getMediaDetails(item.mediaType, item.id))
-          .then(upsertMedia)
-          .catch((error) => console.warn('Elasticsearch upsert:', error.message));
-      }
-      res.json({ provider: 'tmdb-fallback', ...tmdbResults, ...(elasticWarning ? { warning: elasticWarning } : {}) });
-  });
-}
+    const tmdbResults = await searchTmdb(params);
+    if (elasticEnabled() && tmdbResults.results?.length) {
+      mapLimit(tmdbResults.results.slice(0, 20), 5, (item) => getMediaDetails(item.mediaType, item.id))
+        .then(upsertMedia)
+        .catch((error) => console.warn('Elasticsearch upsert:', error.message));
+    }
+
+    res.json({ provider: 'tmdb-fallback', ...tmdbResults, ...(elasticWarning ? { warning: elasticWarning } : {}) });
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.use((error, _req, res, _next) => {
   console.error(error);
