@@ -109,7 +109,7 @@ export default function App() {
   const [country, setCountry] = useState('');
   const [genre, setGenre] = useState('');
   const [searchType, setSearchType] = useState('all');
-  const [search, setSearch] = useState({ loading: false, error: '', warning: '', results: [], provider: '' });
+  const [search, setSearch] = useState({ loading: false, loadingMore: false, error: '', warning: '', results: [], provider: '', page: 1, totalPages: 1, totalResults: 0 });
   const debouncedQuery = useDebouncedValue(query, 300);
   const debouncedCountry = useDebouncedValue(country, 300);
 
@@ -165,16 +165,32 @@ export default function App() {
     if (view !== 'search') return;
     const hasCriteria = debouncedQuery.trim().length >= 2 || year || debouncedCountry.trim() || genre;
     if (!hasCriteria) {
-      setSearch({ loading: false, error: '', warning: '', results: [], provider: '' });
+      setSearch({ loading: false, loadingMore: false, error: '', warning: '', results: [], provider: '', page: 1, totalPages: 1, totalResults: 0 });
       return;
     }
+
     let live = true;
-    setSearch((current) => ({ ...current, loading: true, error: '' }));
-    api.search({ query: debouncedQuery, year, country: debouncedCountry, genre, mediaType: searchType })
-      .then((data) => {
+    const fetchPage = async (page = 1) => {
+      if (!live) return;
+      setSearch((current) => ({ ...current, loading: true, loadingMore: false, error: '' }));
+
+      try {
+        const data = await api.search({ query: debouncedQuery, year, country: debouncedCountry, genre, mediaType: searchType, page });
         if (!live) return;
         const results = data.results || [];
-        setSearch({ loading: false, error: '', warning: data.warning || '', results, provider: data.provider || '' });
+        const nextState = {
+          loading: false,
+          loadingMore: false,
+          error: '',
+          warning: data.warning || '',
+          provider: data.provider || '',
+          page: Number(data.page || page),
+          totalPages: Number(data.totalPages || 1),
+          totalResults: Number(data.totalResults || results.length),
+          results,
+        };
+        setSearch(nextState);
+
         if (results.length && health?.ratings?.configured === true) {
           loadRatingsProgressively(
             results,
@@ -183,10 +199,51 @@ export default function App() {
             runtimeProfile.lowMemory ? 24 : 36,
           ).catch(() => {});
         }
-      })
-      .catch((error) => live && setSearch({ loading: false, error: error.message, warning: '', results: [], provider: '' }));
+      } catch (error) {
+        if (!live) return;
+        setSearch({ loading: false, loadingMore: false, error: error.message, warning: '', results: [], provider: '', page: 1, totalPages: 1, totalResults: 0 });
+      }
+    };
+
+    fetchPage(1);
     return () => { live = false; };
   }, [view, debouncedQuery, year, debouncedCountry, genre, searchType, health?.ratings?.configured]);
+
+  const loadMoreSearch = () => {
+    if (search.loadingMore || search.page >= search.totalPages) return;
+    const nextPage = search.page + 1;
+    setSearch((current) => ({ ...current, loadingMore: true, error: '' }));
+    let live = true;
+    api.search({ query: debouncedQuery, year, country: debouncedCountry, genre, mediaType: searchType, page: nextPage })
+      .then((data) => {
+        if (!live) return;
+        const moreResults = data.results || [];
+        const updatedResults = [...search.results, ...moreResults];
+        setSearch({
+          loading: false,
+          loadingMore: false,
+          error: '',
+          warning: data.warning || '',
+          provider: data.provider || '',
+          page: Number(data.page || nextPage),
+          totalPages: Number(data.totalPages || 1),
+          totalResults: Number(data.totalResults || updatedResults.length),
+          results: updatedResults,
+        });
+        if (updatedResults.length && health?.ratings?.configured === true) {
+          loadRatingsProgressively(
+            updatedResults,
+            (ratingData) => setRatingsById((current) => mergeRatingsCapped(current, ratingData.ratings, runtimeProfile.lowMemory ? 96 : 180)),
+            () => live,
+            runtimeProfile.lowMemory ? 24 : 36,
+          ).catch(() => {});
+        }
+      })
+      .catch((error) => {
+        if (!live) return;
+        setSearch((current) => ({ ...current, loadingMore: false, error: error.message }));
+      });
+  };
 
   const progressByMedia = useMemo(() => {
     const map = {};
@@ -352,14 +409,18 @@ export default function App() {
             onMediaType={setSearchType}
             genres={home?.genres?.all || []}
             results={search.results}
-            ratingsById={ratingsById}
+            page={search.page}
+            totalPages={search.totalPages}
+            totalResults={search.totalResults}
             loading={search.loading}
+            loadingMore={search.loadingMore}
             error={search.error}
             warning={search.warning}
             provider={search.provider}
             onOpen={setSelected}
             onPlay={play}
             onToggleSaved={library.toggleSaved}
+            onLoadMore={loadMoreSearch}
             isSaved={library.isSaved}
             previewsEnabled={effectivePreviewsEnabled}
           />

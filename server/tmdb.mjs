@@ -300,9 +300,12 @@ export async function homeCatalog() {
   const rails = [
     { key: 'trending', title: 'Trending Now', subtitle: 'Movies and series people are discovering this week', media: mixed },
     { key: 'top-movies', title: 'Top 10 Movies This Week', subtitle: 'Popular movies from TMDB weekly trends', media: topMovies, ranked: true },
-    { key: 'top-series', title: 'Top 10 Series This Week', subtitle: 'Popular shows from TMDB weekly trends', media: topSeries, ranked: true },
+    { key: 'latest', title: 'Latest Releases', subtitle: 'New movies and series from the last six months', media: normalizeList(recentMovies.results.concat(recentTv.results), maps.movie, 'movie', 10).concat(normalizeList(recentTv.results, maps.tv, 'tv')).slice(0, 12) },
     { key: 'new-movies', title: 'Top 10 Recent Movie Releases', subtitle: 'Popular releases from the last six months', media: normalizeList(recentMovies.results, maps.movie, 'movie', 10), ranked: true },
     { key: 'new-series', title: 'New Series', subtitle: 'Fresh shows and returning favourites', media: normalizeList(recentTv.results, maps.tv, 'tv') },
+    { key: 'netflix', title: 'Netflix Originals & Exclusives', subtitle: 'Available on Netflix', media: await searchProvider(8, maps) },
+    { key: 'amazon', title: 'Amazon Prime Video Picks', subtitle: 'Available on Prime Video', media: await searchProvider(9, maps) },
+    { key: 'apple', title: 'Apple TV+ Spotlight', subtitle: 'Available on Apple TV+', media: await searchProvider(2, maps) },
     { key: 'action', title: 'Top 10 Action Movies', subtitle: 'Popular action titles', media: normalizeList(action.results, maps.movie, 'movie', 10), ranked: true },
     { key: 'comedy', title: 'Top 10 Comedy Movies', subtitle: 'Popular comedies', media: normalizeList(comedy.results, maps.movie, 'movie', 10), ranked: true },
     { key: 'scifi-movies', title: 'Top 10 Sci-Fi Movies', subtitle: 'Popular science-fiction titles', media: normalizeList(scifiMovies.results, maps.movie, 'movie', 10), ranked: true },
@@ -349,22 +352,57 @@ function itemMatchesGenre(item, genre) {
   return !genre || item.genres.some((value) => value.toLowerCase() === String(genre).toLowerCase());
 }
 
-async function searchText(query, maps) {
+async function searchText(query, maps, page = 1) {
   const data = await tmdb('/search/multi', {
     query,
     include_adult: false,
     language: 'en-US',
-    page: 1,
+    page,
   }, 4 * 60_000);
-  return normalizeMixed(data.results, maps, 40);
+  return {
+    results: normalizeMixed(data.results, maps, 30),
+    page: Number(data.page || page || 1),
+    totalPages: Number(data.total_pages || 1),
+    totalResults: Number(data.total_results || 0),
+  };
 }
 
 async function discoverType(type, params, maps) {
   const data = await tmdb(`/discover/${type}`, params, 4 * 60_000);
-  return normalizeList(data.results, maps[type], type, 30);
+  return {
+    results: normalizeList(data.results, maps[type], type, 30),
+    page: Number(data.page || 1),
+    totalPages: Number(data.total_pages || 1),
+    totalResults: Number(data.total_results || 0),
+  };
 }
 
-export async function searchTmdb({ query, year, country, genre, mediaType = 'all' }) {
+async function searchProvider(providerId, maps) {
+  const [movies, tv] = await Promise.all([
+    tmdb('/discover/movie', {
+      language: 'en-US',
+      include_adult: false,
+      include_video: false,
+      watch_region: 'US',
+      with_watch_providers: providerId,
+      sort_by: 'popularity.desc',
+      page: 1,
+    }, 25 * 60_000),
+    tmdb('/discover/tv', {
+      language: 'en-US',
+      include_adult: false,
+      watch_region: 'US',
+      with_watch_providers: providerId,
+      sort_by: 'popularity.desc',
+      page: 1,
+    }, 25 * 60_000),
+  ]);
+  const movieItems = normalizeList(movies.results, maps.movie, 'movie', 10);
+  const tvItems = normalizeList(tv.results, maps.tv, 'tv', 10);
+  return [...movieItems, ...tvItems].sort((a, b) => b.popularity - a.popularity).slice(0, 14);
+}
+
+export async function searchTmdb({ query, year, country, genre, mediaType = 'all', page = 1 }) {
   const genres = await getGenreCatalog();
   const maps = {
     movie: new Map(genres.movie.map((item) => [item.id, item.name])),
@@ -372,28 +410,35 @@ export async function searchTmdb({ query, year, country, genre, mediaType = 'all
   };
   const selectedTypes = mediaType === 'movie' || mediaType === 'tv' ? [mediaType] : ['movie', 'tv'];
   let results;
+  let totalPages = 1;
+  let totalResults = 0;
 
   if (query) {
-    results = (await searchText(query, maps)).filter((item) => selectedTypes.includes(item.mediaType));
+    const searchData = await searchText(query, maps, page);
+    results = searchData.results.filter((item) => selectedTypes.includes(item.mediaType));
+    totalPages = searchData.totalPages;
+    totalResults = searchData.totalResults;
   } else {
     const code = countryCode(country);
     const discovered = await Promise.all(selectedTypes.map((type) => discoverType(type, {
       include_adult: false,
       language: 'en-US',
-      page: 1,
+      page,
       sort_by: 'popularity.desc',
       ...(type === 'movie' ? { include_video: false, primary_release_year: year || undefined } : { first_air_date_year: year || undefined }),
       with_genres: genreIdFor(genres, type, genre) || undefined,
       with_origin_country: code || undefined,
     }, maps)));
     results = discovered.flat().sort((a, b) => b.popularity - a.popularity);
+    totalPages = discovered.reduce((sum, item) => sum + item.totalPages, 0) || 1;
+    totalResults = discovered.reduce((sum, item) => sum + item.totalResults, 0) || results.length;
   }
 
   results = results
     .filter((item) => itemMatchesYear(item, year))
     .filter((item) => itemMatchesGenre(item, genre));
 
-  if (country) {
+  if (country && !query) {
     const code = countryCode(country);
     const needle = String(country).trim().toLowerCase();
     const detailed = await mapLimit(results.slice(0, 30), 5, (item) => getMediaDetails(item.mediaType, item.id));
@@ -403,7 +448,7 @@ export async function searchTmdb({ query, year, country, genre, mediaType = 'all
     ));
   }
 
-  return results.slice(0, 30);
+  return { results: results.slice(0, 30), page, totalPages, totalResults };
 }
 
 export async function mapLimit(items, limit, fn) {

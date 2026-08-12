@@ -19,8 +19,7 @@ export default function PlayerDialog({ playback, playerConfig, onClose }) {
   const episodeName = playback?.episodeName || '';
   const baseUrl = playerConfig?.baseUrl || 'https://www.vidking.net';
   const color = playerConfig?.color || 'e50914';
-  // By default don't set a sandbox for playback providers; allow overriding via `playerConfig.sandbox`
-  const sandbox = playerConfig?.sandbox;
+  const sandbox = playerConfig?.sandbox || 'allow-scripts allow-same-origin allow-presentation allow-popups';
 
   const src = useMemo(() => {
     if (!media?.id) return '';

@@ -153,34 +153,27 @@ app.get('/api/search', async (req, res, next) => {
       country: String(req.query.country || '').trim(),
       genre: String(req.query.genre || '').trim(),
       mediaType: String(req.query.type || 'all').trim(),
-    };
+        page: Number(req.query.page || 1),
+      };
 
-    let elasticWarning = '';
-    if (elasticEnabled()) {
-      try {
-        const elasticResults = await searchElastic(params);
-        if (elasticResults?.length) return res.json({ provider: 'elasticsearch', results: elasticResults });
-      } catch (error) {
-        elasticWarning = `Elasticsearch unavailable: ${error.message}`;
-        console.warn(elasticWarning);
+      let elasticWarning = '';
+      if (elasticEnabled()) {
+        try {
+          const elasticResults = await searchElastic(params);
+          if (elasticResults?.length) return res.json({ provider: 'elasticsearch', results: elasticResults, page: params.page, totalPages: 1, totalResults: elasticResults.length });
+        } catch (error) {
+          elasticWarning = `Elasticsearch unavailable: ${error.message}`;
+          console.warn(elasticWarning);
+        }
       }
-    }
 
-    const tmdbResults = await searchTmdb(params);
-    if (elasticEnabled() && tmdbResults.length) {
-      mapLimit(tmdbResults.slice(0, 20), 5, (item) => getMediaDetails(item.mediaType, item.id))
-        .then(upsertMedia)
-        .catch((error) => console.warn('Elasticsearch upsert:', error.message));
-    }
-    res.json({ provider: 'tmdb-fallback', results: tmdbResults, ...(elasticWarning ? { warning: elasticWarning } : {}) });
-  } catch (error) { next(error); }
-});
-
-if (fs.existsSync(distDir)) {
-  app.use(express.static(distDir, { maxAge: '1h', etag: true }));
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api/')) return next();
-    return res.sendFile(path.join(distDir, 'index.html'));
+      const tmdbResults = await searchTmdb(params);
+      if (elasticEnabled() && tmdbResults.results?.length) {
+        mapLimit(tmdbResults.results.slice(0, 20), 5, (item) => getMediaDetails(item.mediaType, item.id))
+          .then(upsertMedia)
+          .catch((error) => console.warn('Elasticsearch upsert:', error.message));
+      }
+      res.json({ provider: 'tmdb-fallback', ...tmdbResults, ...(elasticWarning ? { warning: elasticWarning } : {}) });
   });
 }
 

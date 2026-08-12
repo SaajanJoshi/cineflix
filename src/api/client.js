@@ -27,13 +27,14 @@ export const api = {
     }),
   }),
   diagnoseRatings: () => request('/api/ratings/diagnose'),
-  search: ({ query = '', year = '', country = '', genre = '', mediaType = 'all' }) => {
+  search: ({ query = '', year = '', country = '', genre = '', mediaType = 'all', page = 1 }) => {
     const params = new URLSearchParams();
     if (query.trim()) params.set('q', query.trim());
     if (year) params.set('year', String(year));
     if (country.trim()) params.set('country', country.trim());
     if (genre) params.set('genre', genre);
     if (mediaType) params.set('type', mediaType);
+    if (page && page > 1) params.set('page', String(page));
     return request(`/api/search?${params.toString()}`);
   },
 };

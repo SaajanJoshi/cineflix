@@ -1,10 +1,27 @@
+import { useEffect, useRef } from 'react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import MovieCard from './MovieCard.jsx';
+
+const COUNTRIES = [
+  { code: '', label: 'Any country' },
+  { code: 'US', label: 'United States' },
+  { code: 'GB', label: 'United Kingdom' },
+  { code: 'CA', label: 'Canada' },
+  { code: 'IN', label: 'India' },
+  { code: 'KR', label: 'South Korea' },
+  { code: 'JP', label: 'Japan' },
+  { code: 'FR', label: 'France' },
+  { code: 'DE', label: 'Germany' },
+  { code: 'AU', label: 'Australia' },
+  { code: 'BR', label: 'Brazil' },
+  { code: 'MX', label: 'Mexico' },
+];
 
 export default function SearchView({
   query,
@@ -19,18 +36,33 @@ export default function SearchView({
   onMediaType,
   genres,
   results,
-  ratingsById,
+  page,
+  totalPages,
+  totalResults,
   loading,
+  loadingMore,
   error,
   warning,
   provider,
   onOpen,
   onPlay,
   onToggleSaved,
+  onLoadMore,
   isSaved,
   previewsEnabled,
 }) {
   const hasCriteria = query.trim().length >= 2 || year || country.trim() || genre;
+  const sentinelRef = useRef(null);
+
+  useEffect(() => {
+    if (!onLoadMore || !sentinelRef.current) return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry?.isIntersecting) onLoadMore();
+    }, { rootMargin: '120px' });
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [onLoadMore]);
 
   return (
     <Box component="main" sx={{ pt: { xs: 15, lg: 12.5 }, px: { xs: 2, md: 5 }, pb: 9, minHeight: '100vh', background: 'radial-gradient(circle at 78% 0%, rgba(229,9,20,.08), transparent 30%)' }}>
@@ -49,17 +81,32 @@ export default function SearchView({
           <MenuItem value="tv">TV shows</MenuItem>
         </TextField>
         <TextField label="Year" type="number" value={year} onChange={(event) => onYear(event.target.value)} inputProps={{ min: 1900, max: new Date().getFullYear() + 1, 'data-tv-focus': 'true' }} />
-        <TextField label="Country" value={country} onChange={(event) => onCountry(event.target.value)} placeholder="US, India, Korea" inputProps={{ 'data-tv-focus': 'true' }} />
+        <TextField
+          select
+          label="Country"
+          value={country}
+          onChange={(event) => onCountry(event.target.value)}
+          SelectProps={{ inputProps: { 'data-tv-focus': 'true' } }}
+        >
+          {COUNTRIES.map((item) => (
+            <MenuItem key={item.code} value={item.code}>{item.label}</MenuItem>
+          ))}
+        </TextField>
         <TextField select label="Genre" value={genre} onChange={(event) => onGenre(event.target.value)} SelectProps={{ inputProps: { 'data-tv-focus': 'true' } }}>
           <MenuItem value="">All genres</MenuItem>
           {genres.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
         </TextField>
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2.1, minHeight: 33 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2.1, minHeight: 33, flexWrap: 'wrap' }}>
         {provider ? <Chip size="small" label={provider === 'elasticsearch' ? 'Elasticsearch fuzzy search' : 'TMDB search fallback'} color={provider === 'elasticsearch' ? 'primary' : 'default'} /> : null}
         {loading ? <CircularProgress size={20} /> : null}
-        {!loading && results.length ? <Typography color="text.secondary" sx={{ fontSize: '.84rem' }}>{results.length} results</Typography> : null}
+        {!loading && !loadingMore && results.length ? (
+          <Typography color="text.secondary" sx={{ fontSize: '.84rem' }}>
+            {totalResults ? `${totalResults.toLocaleString()} results` : `${results.length} results`}
+            {page && totalPages ? ` · page ${page} of ${totalPages}` : ''}
+          </Typography>
+        ) : null}
       </Box>
 
       {error ? <Typography color="error.main" sx={{ mt: 2 }}>{error}</Typography> : null}
@@ -90,6 +137,22 @@ export default function SearchView({
           </Box>
         ))}
       </Box>
+
+      {(page < totalPages || loadingMore) && !loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3, px: 2 }}>
+          <Button
+            data-tv-focus="true"
+            variant="outlined"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            sx={{ px: 4 }}
+          >
+            {loadingMore ? 'Loading more…' : 'Load more results'}
+          </Button>
+        </Box>
+      ) : null}
+
+      <Box ref={sentinelRef} sx={{ height: 1, width: '100%' }} />
     </Box>
   );
 }
